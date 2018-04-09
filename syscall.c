@@ -101,6 +101,14 @@ extern int sys_uptime(void);
 extern int sys_halt(void);
 extern int sys_yield(void);
 
+//PA#1
+extern int sys_ps(void);
+extern int sys_getnice(void);
+extern int sys_setnice(void);
+
+// PA #2
+extern int sys_getpinfo(void);
+
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
@@ -125,6 +133,14 @@ static int (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_halt]    sys_halt,
 [SYS_yield]   sys_yield,
+
+//PA#1
+[SYS_ps_inside]	sys_ps,
+[SYS_getnice]	sys_getnice,
+[SYS_setnice]	sys_setnice,
+
+// PA #2
+[SYS_getpinfo]	sys_getpinfo,
 };
 
 void

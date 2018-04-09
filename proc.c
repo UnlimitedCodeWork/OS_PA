@@ -7,6 +7,9 @@
 #include "proc.h"
 #include "spinlock.h"
 
+// PA #1
+#include "proc_type.h"
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -72,6 +75,9 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+  p->niceness = 0;
+  p->ticks = 0;
+  p->timeslice = 0;
 
   return p;
 }
@@ -294,7 +300,17 @@ scheduler(void)
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      proc = p;
+	
+      switch_to(p);
+    }
+    release(&ptable.lock);
+
+  }
+}
+
+void switch_to(struct proc* p)
+{
+	proc = p;	// pointed by gs:4 (from proc.h)
       switchuvm(p);
       p->state = RUNNING;
       swtch(&cpu->scheduler, p->context);
@@ -303,10 +319,6 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
-    }
-    release(&ptable.lock);
-
-  }
 }
 
 // Enter scheduler.  Must hold only ptable.lock
@@ -482,4 +494,92 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// PA#1
+void ps(int pid, struct ps_info *info_ptr)
+{
+	static char* state_code2str[] = {"UNUSED", "EMBRYO", "SLEEPING", "RUNNABLE", "RUNNING", "ZOMBIE"};
+	//proc->pid, proc->niceness, state_code2str[proc->state], proc->name);
+	struct proc *p;
+	
+  acquire(&ptable.lock);
+  
+  for(p = ptable.proc, info_ptr->arr_len = 0; p < &ptable.proc[NPROC]; p++){
+	  if(pid == 0 || p->pid == pid){
+	    if (p->state == UNUSED) {
+		    continue;
+	    }
+	    strncpy((info_ptr->arr[info_ptr->arr_len].name), p->name, 16);
+	    info_ptr->arr[info_ptr->arr_len].niceness = p->niceness;
+	    info_ptr->arr[info_ptr->arr_len].pid = p->pid;
+	    strncpy((info_ptr->arr[info_ptr->arr_len].state), state_code2str[p->state], 10);
+	    (info_ptr->arr_len)++;
+    }
+  }
+  release(&ptable.lock);
+}
+
+int getnice(int pid)
+{
+	struct proc *p;
+	
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	  if (p->state == UNUSED) {
+		    continue;
+	    }
+    if(p->pid == pid){
+	    release(&ptable.lock);
+	    return p->niceness;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+int setnice(int pid, int value)
+{
+	if (! (0 <= value && value <= 3))
+	{
+		return -1;
+	}
+	
+	struct proc *p;
+	
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+	  if (p->state == UNUSED) {
+		    continue;
+	    }
+    if(p->pid == pid){
+	    p->niceness = value;
+	    release(&ptable.lock);
+	    return 0;
+    }
+  }
+  release(&ptable.lock);
+  return -1;
+}
+
+// PA #2
+int getpinfo(struct pstat* ptr)
+{
+	if (ptr == 0)
+	{
+		return -1;
+	}
+	
+	acquire(&ptable.lock);
+  
+	for(int i = 0; i < NPROC; i++)
+	{
+		ptr->inuse[i] = ptable.proc[i].state != UNUSED;
+		ptr->nice[i] = ptable.proc[i].niceness;
+		ptr->pid[i] = ptable.proc[i].pid;
+		ptr->ticks[i] = ptable.proc[i].ticks;
+	}
+	release(&ptable.lock);
+  
+	return 0;
 }

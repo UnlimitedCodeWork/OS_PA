@@ -22,3 +22,10 @@
 #define SYS_close  21
 #define SYS_halt   22
 #define SYS_yield  23
+//PA#1
+#define SYS_ps_inside	24
+#define SYS_getnice	25
+#define SYS_setnice	26
+
+// PA #2
+#define SYS_getpinfo	27

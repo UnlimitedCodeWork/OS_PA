@@ -10,6 +10,12 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+// PA #1
+struct ps_info;
+
+// PA #2
+struct pstat;
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -181,6 +187,17 @@ void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
+
+// PA#1
+//	proc.c
+void ps(int, struct ps_info*);
+int getnice(int);
+int setnice(int, int);
+
+// PA #2
+//	proc.c
+int getpinfo(struct pstat*);
+void switch_to(struct proc*);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

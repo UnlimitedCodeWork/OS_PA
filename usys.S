@@ -31,3 +31,11 @@ SYSCALL(sleep)
 SYSCALL(uptime)
 SYSCALL(halt)
 SYSCALL(yield)
+
+# PA#1
+SYSCALL(ps_inside)
+SYSCALL(getnice)
+SYSCALL(setnice)
+
+# PA #2
+SYSCALL(getpinfo)

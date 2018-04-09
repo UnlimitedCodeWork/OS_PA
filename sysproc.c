@@ -103,3 +103,52 @@ sys_yield(void)
   yield();
   return 0;
 }
+
+//PA#1
+int sys_ps(void)
+{
+	int n;
+	struct ps_info *info_ptr;
+	if(argint(1, (int*)&info_ptr) < 0)
+	{
+		return -1;
+	}
+	if(argint(0, &n) < 0)
+	{
+		return -1;
+	}
+	ps(n, info_ptr);
+	return proc -> tf -> eax;
+}
+
+int sys_getnice(void)
+{
+	int n;
+	if(argint(0, &n) < 0)
+	{
+		return -1;
+	}
+	return getnice(n);
+}
+
+int sys_setnice(void)
+{
+	int n;
+	int val;
+	if(argint(0, &n) < 0 || argint(1, &val) < 0)
+	{
+		return -1;
+	}
+	return setnice(n, val);
+}
+
+// PA #2
+int sys_getpinfo()
+{
+	struct pstat *ptr;
+	if(argint(0, (int*)&ptr) < 0)
+	{
+		return -1;
+	}
+	return getpinfo(ptr);
+}

@@ -1,6 +1,12 @@
 struct stat;
 struct rtcdate;
 
+// PA #1
+struct ps_info;
+
+// PA #2
+struct pstat;
+
 // system calls
 int fork(void);
 int exit(void) __attribute__((noreturn));
@@ -25,6 +31,15 @@ int sleep(int);
 int uptime(void);
 int halt(void) __attribute__((noreturn));
 void yield(void);
+
+//PA#1
+void ps(int); //user interface: call ps_inside and 
+void ps_inside(int, struct ps_info*);
+int getnice(int);
+int setnice(int, int);
+
+//PA #2
+int getpinfo(struct pstat*);
 
 // ulib.c
 int stat(char*, struct stat*);

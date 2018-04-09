@@ -14,6 +14,9 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
+// PA #2
+const int timeslices[4] = {1, 2, 4, 8};
+
 void
 tvinit(void)
 {
@@ -102,10 +105,22 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
-  /*
-  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
-  */
+  
+	if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
+	{
+		
+		proc->ticks++;
+		proc->timeslice++;
+		if (proc->timeslice >= timeslices[proc->niceness])
+		{
+			//proc->timeslice = 0;
+			yield();
+		}
+		
+		//yield();
+		// shouldn't use yield() when scheduling
+	}
+  
 
   // Check if the process has been killed since we yielded
   if(proc && proc->killed && (tf->cs&3) == DPL_USER)
