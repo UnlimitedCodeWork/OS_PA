@@ -23,3 +23,21 @@ struct pstat {
 };
 
 #endif
+
+#ifndef _QUEUE_H_
+#define _QUEUE_H_
+
+typedef struct queue {
+	int front;
+	int rear;
+	int pids[NPROC + 1]; // ptable slot id's
+} queue;
+
+void init_queue(queue*);
+void enque(queue*, int);
+int deque(queue*);
+int empty(queue*);
+int front(queue*);
+void print_queue(queue*);
+
+#endif

@@ -16,6 +16,15 @@ uint ticks;
 
 // PA #2
 const int timeslices[4] = {1, 2, 4, 8};
+char* state_code2str[] = {"UNUSED", "EMBRYO", "SLEEPING", "RUNNABLE", "RUNNING", "ZOMBIE"};
+extern struct {
+  struct spinlock lock;
+  struct proc proc[NPROC];
+} ptable;
+#include "proc_type.h"
+extern queue mlfq[4];
+extern int is_runnable[NPROC];
+extern int test;
 
 void
 tvinit(void)
@@ -105,19 +114,40 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
-  
+  //cprintf("%d %d %d\n", proc, proc && proc->state == RUNNING, tf->trapno == T_IRQ0+IRQ_TIMER);
 	if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
 	{
+//  acquire(&ptable.lock);
+//  
+//  for (int i = 0; i < NPROC; i++){
+//	  if (ptable.proc[i].state == UNUSED) continue;
+//	  //if (ptable.proc[i].name[0] != 's') continue;
+//	  
+//	  cprintf(state_code2str[ptable.proc[i].state]);
+//	  cprintf(" proc: %d id: %d name: %s mlfq0: %s mlfq1: %s mlfq2: %s mlfq3: %s is_runnable: %d", 
+//	  proc, ptable.proc[i].pid,
+//	  ptable.proc[i].name,
+//	  empty(mlfq + 0) ? "empty":"filled",
+//	  empty(mlfq + 1) ? "empty":"filled",
+//	  empty(mlfq + 2) ? "empty":"filled",
+//	  empty(mlfq + 3) ? "empty":"filled",
+//	  is_runnable[i]);
+//	  cprintf("\n");
+//  }
+//  release(&ptable.lock);
+  
 		
 		proc->ticks++;
 		proc->timeslice++;
+//		cprintf("ticks: %d cur_tick: %d timeslice: %d\n", proc->ticks, proc->timeslice, timeslices[proc->niceness]);
 		if (proc->timeslice >= timeslices[proc->niceness])
 		{
 			//proc->timeslice = 0;
+//			cprintf("yield();\n");
 			yield();
 		}
 		
-		//yield();
+//		yield();
 		// shouldn't use yield() when scheduling
 	}
   

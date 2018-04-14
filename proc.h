@@ -70,9 +70,11 @@ struct proc {
   
   // PA #2
   int ticks;
-  int timeslice;
+  int timeslice;	// cur_tick
 };
 
+// PA #2
+#define _NEW_SCHED_
 
 
 

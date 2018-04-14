@@ -118,6 +118,7 @@ userinit(void)
   p->state = RUNNABLE;
 
   release(&ptable.lock);
+  
 }
 
 // Grow current process's memory by n bytes.
@@ -282,34 +283,207 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+
+// PA #2
+void init_queue(queue* q)
+{
+	q->front = 0;
+	q->rear = 0;
+}
+
+void enque(queue* q, int pid)
+{
+	if (q->front == (q->rear + 1) % (NPROC + 1)) {
+		return;
+	}
+	q->pids[(q->rear)++] = pid;
+	q->rear %= (NPROC + 1);
+}
+
+int deque(queue* q)
+{
+	int ret;
+	if (q->front == q->rear) {
+		return -1;
+	}
+	ret = q->pids[(q->front)++];
+	q->front %= (NPROC + 1);
+	return ret;
+}
+
+int empty(queue* q)
+{
+	return q->front == q->rear;
+}
+
+int front(queue* q)
+{
+	return q->pids[q->front];
+}
+
+void print_queue(queue* q)
+{
+	for (int i = q->front; i != q->rear; i = (i + 1)%(NPROC + 1)){
+		cprintf("%d=%s ", q->pids[i], ptable.proc[q->pids[i]].name);
+	}
+	cprintf("%s %d\n", empty(q) ? "empty":"filled", empty(q) ? 0 : front(q));
+}
+
+extern const int timeslices[4];
+
+queue mlfq[4];
+int is_runnable[NPROC];
+int test = 0;
+void print_mlfq(char *s)
+{
+	cprintf("%s:\n", s);
+	for(int i = 0; i < 4; i++){
+		if (! empty(mlfq + i)){
+			print_queue(mlfq + i);
+		}
+	}
+	cprintf("actual RUNNABLEs: ");
+	for(int i = 0; i < NPROC; i++){
+		if (ptable.proc[i].state == RUNNABLE) {
+			cprintf("%d ", i);
+		}
+	}
+	cprintf("\nis_runnable: ");
+	for(int i = 0; i < NPROC; i++){
+		if(is_runnable[i]){
+			cprintf("%d ", i);
+		}
+	}
+	cprintf("\n\n");
+}
 void
 scheduler(void)
 {
   struct proc *p;
-
+  int first5 = 100;
+	
+	for(int i = 0; i < 4; i++){
+		init_queue(mlfq + i);
+	}
+	
+	acquire(&ptable.lock);
+	for(int i = 0; i < NPROC; i++){
+		if (ptable.proc[i].state == RUNNABLE) {
+			is_runnable[i] = 1;
+			enque(mlfq + 0, i);
+		}
+		else {
+			is_runnable[i] = 0;
+		}
+	}
+	release(&ptable.lock);
+	
+//	print_mlfq("start");
   for(;;){
+	  if(first5) first5--;
     // Enable interrupts on this processor.
     sti();
-
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-	
-      switch_to(p);
+    
+#ifdef _NEW_SCHED_
+//if(first5) print_mlfq("before choose");
+	  int runnable_exists = 0;
+	  int runnable_idx;
+    
+    // update is_runnable
+    // add new runnables to queue 0
+    for (int i = 0; i < NPROC; i++){
+	    // currently runnable
+	    if (ptable.proc[i].state == RUNNABLE){
+		    if (! is_runnable[i]) {
+			    // new runnable
+			    enque(mlfq + ptable.proc[i].niceness, i);
+//			    if(first5) print_mlfq("new runnable");
+		    }
+		    // update cur is_runnable
+		    is_runnable[i] = 1;
+	    }
+	    // not runnable
+	    else {
+		    is_runnable[i] = 0;
+	    }
     }
+    
+    // choose a next p from 4 queues
+    for(int i = 0; i < 4; i++){
+	    if (! empty(mlfq + i)) {
+		    runnable_exists = 1;
+		    runnable_idx = front(mlfq + i);
+		    break;
+	    }
+    }
+    
+    
+    // if no runnable process, release lock and continue loop
+    if (! runnable_exists) {
+	    release(&ptable.lock);
+	    continue;
+    }
+    
+    // run it
+  //  cprintf("switch start\n");
+    p = ptable.proc + runnable_idx;
+   // cprintf("p is runnable? %d\n", p->state == RUNNABLE);
+    switch_to(p);
+    //cprintf("switch returned\n");
+    
+    //deque from queue
+    deque(mlfq + p->niceness);
+//    if(first5) cprintf("sleeping: %d\n", p->state==SLEEPING);
+//    if(first5) print_mlfq("after deque");
+    if (p->state == ZOMBIE || p->state == SLEEPING) {
+		// does not enque
+		is_runnable[runnable_idx] = 0;
+//    if(first5) print_mlfq("zombie or sleeping");
+    }
+    else if (timeslices[p->niceness] <= p->timeslice) {
+	    // time's up!
+	    // enque to next queue(if any)
+	    // change niceness accordingly
+	    if (p->niceness == 3) {
+		    enque(mlfq + 3, runnable_idx);
+	    }
+	    else {
+		    p->niceness++;
+		    enque(mlfq + p->niceness, runnable_idx);
+	    }
+	    
+//    print_mlfq("time's up");
+    }
+    else {
+	    // yielded
+	    // add to rear of cur queue
+	    // does NOT change niceness
+	    enque(mlfq + p->niceness, runnable_idx);
+	    
+//    print_mlfq("yielded");
+    }
+	p->timeslice = 0;
+#else
+    
+for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state != RUNNABLE)
+		continue;
+		
+	switch_to(p);
+}
+#endif    
     release(&ptable.lock);
-
   }
 }
 
 void switch_to(struct proc* p)
 {
+	// h to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+	
 	proc = p;	// pointed by gs:4 (from proc.h)
       switchuvm(p);
       p->state = RUNNING;
