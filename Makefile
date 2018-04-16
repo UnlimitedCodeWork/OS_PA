@@ -181,6 +181,8 @@ UPROGS=\
 	_setnice\
 	_getpinfo\
 	_loop\
+	_grade1\
+	_grade2\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)

@@ -36,6 +36,8 @@ typedef struct queue {
 void init_queue(queue*);
 void enque(queue*, int);
 int deque(queue*);
+int rear_deque(queue*);
+int deque_by_idx(queue*, int);
 int empty(queue*);
 int front(queue*);
 void print_queue(queue*);

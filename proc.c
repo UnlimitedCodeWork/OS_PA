@@ -10,6 +10,10 @@
 // PA #1
 #include "proc_type.h"
 
+// PA #2
+queue mlfq[4];
+int is_runnable[NPROC];
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -181,6 +185,15 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  proc->state = RUNNABLE;
+  
+  is_runnable[np - ptable.proc] = 1;
+  enque(mlfq + 0, np - ptable.proc);
+//  cprintf("fork(): %s, pid: %d, idx: %d runnable?: %d, nice: %d\n", 
+//  proc->name, proc->pid, proc - ptable.proc, proc->state == RUNNABLE,
+//  proc->niceness);
+  
+  sched();
 
   release(&ptable.lock);
 
@@ -311,6 +324,40 @@ int deque(queue* q)
 	return ret;
 }
 
+int rear_deque(queue* q)
+{
+	int ret;
+	if (q->front == q->rear) {
+		return -1;
+	}
+	ret = q->pids[--(q->rear)];
+	q->rear = (q->rear + NPROC + 1) % (NPROC + 1);
+	return ret;
+}
+
+int deque_by_idx(queue* q, int idx)
+{
+	int ret;
+	int index = -1;
+	for (int i = q->front; i != q->rear; i = (i + 1)%(NPROC + 1)) {
+		if (q->pids[i] == idx) {
+			index = i;
+			break;
+		}
+	}
+	if (index == -1) {
+		return -1;
+	}
+	ret = idx;
+	
+	for (int i = index; (i + 1)%(NPROC + 1) != q->rear; i = (i + 1)%(NPROC + 1)) {
+		q->pids[i] = q->pids[(i + 1)%(NPROC + 1)];
+	}
+	q->rear = (q->rear - 1 + NPROC + 1) % (NPROC + 1);
+	
+	return ret;
+}
+
 int empty(queue* q)
 {
 	return q->front == q->rear;
@@ -331,8 +378,6 @@ void print_queue(queue* q)
 
 extern const int timeslices[4];
 
-queue mlfq[4];
-int is_runnable[NPROC];
 int test = 0;
 void print_mlfq(char *s)
 {
@@ -430,26 +475,38 @@ scheduler(void)
   //  cprintf("switch start\n");
     p = ptable.proc + runnable_idx;
    // cprintf("p is runnable? %d\n", p->state == RUNNABLE);
+   
+    //deque from queue
+    deque(mlfq + p->niceness);
+    enque(mlfq + p->niceness, runnable_idx);
+   
     switch_to(p);
     //cprintf("switch returned\n");
     
-    //deque from queue
-    deque(mlfq + p->niceness);
 //    if(first5) cprintf("sleeping: %d\n", p->state==SLEEPING);
 //    if(first5) print_mlfq("after deque");
+    
     if (p->state == ZOMBIE || p->state == SLEEPING) {
 		// does not enque
+		rear_deque(mlfq + p->niceness);
 		is_runnable[runnable_idx] = 0;
 //    if(first5) print_mlfq("zombie or sleeping");
     }
+//    else if (cur_niceness != p->niceness) {
+//	    // setnice() called
+//	    rear_deque(mlfq + cur_niceness);
+//	    enque(mlfq + p->niceness, runnable_idx);
+////	    cprintf("not yet implemented: setnice\n");
+//    }
     else if (timeslices[p->niceness] <= p->timeslice) {
 	    // time's up!
 	    // enque to next queue(if any)
 	    // change niceness accordingly
 	    if (p->niceness == 3) {
-		    enque(mlfq + 3, runnable_idx);
+//		    enque(mlfq + 3, runnable_idx);
 	    }
 	    else {
+		    rear_deque(mlfq + p->niceness);
 		    p->niceness++;
 		    enque(mlfq + p->niceness, runnable_idx);
 	    }
@@ -460,7 +517,7 @@ scheduler(void)
 	    // yielded
 	    // add to rear of cur queue
 	    // does NOT change niceness
-	    enque(mlfq + p->niceness, runnable_idx);
+//	    enque(mlfq + p->niceness, runnable_idx);
 	    
 //    print_mlfq("yielded");
     }
@@ -511,8 +568,11 @@ sched(void)
     panic("sched ptable.lock");
   if(cpu->ncli != 1)
     panic("sched locks");
-  if(proc->state == RUNNING)
+  if(proc->state == RUNNING) {
+
+	
     panic("sched running");
+  }
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = cpu->intena;
@@ -572,7 +632,6 @@ sleep(void *chan, struct spinlock *lk)
     acquire(&ptable.lock);  //DOC: sleeplock1
     release(lk);
   }
-
   // Go to sleep.
   proc->chan = chan;
   proc->state = SLEEPING;
@@ -727,7 +786,11 @@ int setnice(int pid, int value)
 		    continue;
 	    }
     if(p->pid == pid){
+	    deque_by_idx(mlfq + p->niceness, p - ptable.proc);
+	    enque(mlfq + value, p - ptable.proc);
 	    p->niceness = value;
+	    proc->state = RUNNABLE;
+	    sched();
 	    release(&ptable.lock);
 	    return 0;
     }
